@@ -1,10 +1,31 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
 import AdminPage from './pages/AdminPage';
+import { SettingsProvider } from './contexts/SettingsContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { migrationService } from './services/migrationService';
 
 function App() {
+  // アプリ起動時にマイグレーションを実行
+  useEffect(() => {
+    const runMigrationIfNeeded = async () => {
+      try {
+        if (migrationService.isMigrationNeeded()) {
+          console.log('マイグレーションが必要です。実行中...');
+          await migrationService.runFullMigration();
+        } else {
+          console.log('マイグレーションは完了しています');
+        }
+      } catch (error) {
+        console.error('マイグレーションエラー:', error);
+      }
+    };
+    
+    runMigrationIfNeeded();
+  }, []);
+
   const isAuthenticated = () => {
     return localStorage.getItem('user') && localStorage.getItem('token');
   };
@@ -38,42 +59,46 @@ function App() {
   };
 
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-100">
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              isAuthenticated() ? (
-                getUserRole() === 'admin' ? (
-                  <Navigate to="/admin" replace />
-                ) : (
-                  <Navigate to="/chat" replace />
-                )
-              ) : (
-                <LoginPage />
-              )
-            } 
-          />
-          <Route 
-            path="/chat" 
-            element={
-              <PrivateRoute requiredRole="student">
-                <ChatPage />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="/admin" 
-            element={
-              <PrivateRoute requiredRole="admin">
-                <AdminPage />
-              </PrivateRoute>
-            } 
-          />
-        </Routes>
-      </div>
-    </Router>
+    <SettingsProvider>
+      <ToastProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-100">
+            <Routes>
+              <Route 
+                path="/" 
+                element={
+                  isAuthenticated() ? (
+                    getUserRole() === 'admin' ? (
+                      <Navigate to="/admin" replace />
+                    ) : (
+                      <Navigate to="/chat" replace />
+                    )
+                  ) : (
+                    <LoginPage />
+                  )
+                } 
+              />
+              <Route 
+                path="/chat" 
+                element={
+                  <PrivateRoute requiredRole="student">
+                    <ChatPage />
+                  </PrivateRoute>
+                } 
+              />
+              <Route 
+                path="/admin" 
+                element={
+                  <PrivateRoute requiredRole="admin">
+                    <AdminPage />
+                  </PrivateRoute>
+                } 
+              />
+            </Routes>
+          </div>
+        </Router>
+      </ToastProvider>
+    </SettingsProvider>
   );
 }
 

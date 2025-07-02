@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
+import { firebaseChatService } from '../services/firebaseChatService';
+import { firebaseStudentService } from '../services/firebaseStudentService';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [appName, setAppName] = useState('Cheiron');
   const navigate = useNavigate();
 
-  // モックデータ - 後でAPI連携に置き換え
+  useEffect(() => {
+    setAppName('Cheiron');
+  }, []);
+
+  // 管理者用のモックデータ
   const mockUsers: Record<string, { password: string; user: User }> = {
     admin: {
       password: 'admin123',
@@ -18,24 +25,6 @@ const LoginPage: React.FC = () => {
         displayName: '田中先生',
         role: 'admin'
       }
-    },
-    student01: {
-      password: 'student123',
-      user: {
-        id: '2',
-        username: 'student01',
-        displayName: '山田太郎',
-        role: 'student'
-      }
-    },
-    student02: {
-      password: 'student123',
-      user: {
-        id: '3',
-        username: 'student02',
-        displayName: '佐藤花子',
-        role: 'student'
-      }
     }
   };
 
@@ -44,24 +33,77 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // モック認証処理
+      // 1. まず管理者アカウントをチェック
       const mockUser = mockUsers[username];
       if (mockUser && mockUser.password === password) {
-        // ローカルストレージに保存
         localStorage.setItem('user', JSON.stringify(mockUser.user));
         localStorage.setItem('token', 'mock-token-' + Date.now());
 
-        // 役割に応じて画面遷移
         if (mockUser.user.role === 'admin') {
           navigate('/admin');
-        } else {
+          return;
+        }
+      }
+
+      // 2. Firebaseから生徒データを取得してログイン認証
+      try {
+        const students = await firebaseStudentService.getAllStudents();
+        const student = students.find(s => s.loginId === username && s.password === password);
+
+        if (student) {
+          // 生徒認証成功
+          const user: User = {
+            id: student.id,
+            username: student.loginId || student.username,
+            displayName: student.name,
+            role: 'student'
+          };
+
+          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('token', 'firebase-student-token-' + Date.now());
+
+          // Firebaseと同期
+          await firebaseChatService.syncUserWithFirebase();
+          console.log('生徒ログイン成功:', student.name);
+          
           navigate('/chat');
+          return;
+        }
+      } catch (error) {
+        console.error('Firebase生徒認証エラー:', error);
+      }
+
+
+      // 認証失敗
+      if (window.electronAPI && window.electronAPI.showErrorDialog) {
+        try {
+          await window.electronAPI.showErrorDialog(
+            'ログイン認証エラー',
+            '入力されたユーザーIDまたはパスワードが正しくありません。\n\n正しい認証情報を入力してから、もう一度お試しください。'
+          );
+        } catch (error) {
+          console.warn('Electron dialog failed, using browser alert:', error);
+          alert('ログインに失敗しました。ユーザーIDまたはパスワードが間違っています。');
         }
       } else {
         alert('ログインに失敗しました。ユーザーIDまたはパスワードが間違っています。');
       }
+      
     } catch (error) {
-      alert('ログインに失敗しました');
+      console.error('ログインエラー:', error);
+      if (window.electronAPI && window.electronAPI.showErrorDialog) {
+        try {
+          await window.electronAPI.showErrorDialog(
+            'システムエラー',
+            'ログイン処理中にエラーが発生しました。\n\nネットワーク接続を確認し、しばらく時間をおいてから再度お試しください。'
+          );
+        } catch (dialogError) {
+          console.warn('Electron dialog failed, using browser alert:', dialogError);
+          alert('ログインに失敗しました');
+        }
+      } else {
+        alert('ログインに失敗しました');
+      }
     } finally {
       setLoading(false);
     }
@@ -71,11 +113,15 @@ const LoginPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-lg">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 flex items-center justify-center bg-blue-100 rounded-full mb-4">
-            <span className="text-3xl">🤖</span>
+          <div className="mx-auto h-32 w-32 flex items-center justify-center mb-6">
+            <img 
+              src="/Cheiron_256x256.png" 
+              alt="Cheiron Logo" 
+              className="h-full w-full object-contain rounded-full shadow-lg"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            仮人間AI
+            {appName}
           </h2>
           <p className="text-sm text-gray-600">
             ログインしてください
@@ -95,7 +141,7 @@ const LoginPage: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="admin / student01 / student02"
+                placeholder="admin または生徒ID"
               />
             </div>
             <div>
@@ -109,7 +155,7 @@ const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="admin123 / student123"
+                placeholder="パスワード"
               />
             </div>
           </div>
@@ -125,9 +171,9 @@ const LoginPage: React.FC = () => {
           </div>
           
           <div className="text-xs text-gray-500 text-center space-y-1">
-            <p><strong>テスト用アカウント:</strong></p>
-            <p>管理者: admin / admin123</p>
-            <p>生徒: student01 / student123</p>
+            <p><strong>管理者用アカウント:</strong></p>
+            <p>admin / admin123</p>
+            <p className="mt-2 text-blue-600"><strong>生徒は管理者が設定したログインID/パスワードを使用</strong></p>
           </div>
         </form>
       </div>
