@@ -41,7 +41,8 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
     handleSaveTeacher,
     handleAutoSave,
     handleCancelEdit,
-    handleDeleteTeacher
+    handleDeleteTeacher,
+    handleAddTeacher
   } = useTeacherManagement();
 
 
@@ -528,6 +529,111 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
           </div>
         </div>
       ) : null}
+
+      {/* 新しい先生追加モーダル */}
+      {showAddTeacherModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">新しい先生を追加</h2>
+              <button
+                onClick={() => setShowAddTeacherModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* 先生名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  先生名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newTeacherForm.name || ''}
+                  onChange={(e) => setNewTeacherForm({...newTeacherForm, name: e.target.value})}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="例: 田中先生"
+                />
+              </div>
+
+              {/* 表示名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  表示名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newTeacherForm.displayName || ''}
+                  onChange={(e) => setNewTeacherForm({...newTeacherForm, displayName: e.target.value})}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="例: 田中"
+                />
+              </div>
+
+              {/* 専門分野 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  専門分野
+                </label>
+                <input
+                  type="text"
+                  value={newTeacherForm.specialties || ''}
+                  onChange={(e) => setNewTeacherForm({...newTeacherForm, specialties: e.target.value})}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="例: 数学, 物理"
+                />
+              </div>
+
+              {/* 挨拶 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  挨拶
+                </label>
+                <textarea
+                  value={newTeacherForm.greeting || ''}
+                  onChange={(e) => setNewTeacherForm({...newTeacherForm, greeting: e.target.value})}
+                  rows={3}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="例: こんにちは！数学の田中です。一緒に楽しく学びましょう！"
+                />
+              </div>
+
+              {/* 性格・特徴 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  性格・特徴
+                </label>
+                <textarea
+                  value={newTeacherForm.personality || ''}
+                  onChange={(e) => setNewTeacherForm({...newTeacherForm, personality: e.target.value})}
+                  rows={3}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="例: 明るく親しみやすい性格で、学生との対話を大切にします"
+                />
+              </div>
+            </div>
+
+            {/* ボタン */}
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowAddTeacherModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleAddTeacher}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                追加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

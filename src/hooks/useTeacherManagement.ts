@@ -264,6 +264,62 @@ export const useTeacherManagement = () => {
     }
   };
 
+  // 新しい先生を追加
+  const handleAddTeacher = async () => {
+    if (!newTeacherForm.name || !newTeacherForm.displayName) {
+      showError('入力エラー', '先生名と表示名は必須です');
+      return;
+    }
+
+    try {
+      const newTeacher: Omit<AITeacher, 'id'> = {
+        name: newTeacherForm.name,
+        displayName: newTeacherForm.displayName,
+        personality: newTeacherForm.personality || '',
+        specialties: newTeacherForm.specialties ? newTeacherForm.specialties.split(',').map(s => s.trim()) : [],
+        image: newTeacherForm.image || '',
+        greeting: newTeacherForm.greeting || '',
+        teacherInfo: '',
+        freeNotes: '',
+        isActive: true,
+        isDefault: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        responseCustomization: {
+          enableCustomization: false,
+          customPrompts: [],
+          restrictedTopics: []
+        },
+        ngWords: {
+          enabled: false,
+          words: [],
+          categories: [],
+          customMessage: ''
+        }
+      };
+
+      await firebaseAITeacherService.addTeacher(newTeacher);
+      
+      // フォームをリセット
+      setNewTeacherForm({
+        name: '',
+        displayName: '',
+        personality: '',
+        specialties: '',
+        image: '',
+        greeting: ''
+      });
+      
+      // モーダルを閉じる
+      setShowAddTeacherModal(false);
+      
+      showSuccess('追加完了', `${newTeacherForm.displayName}を追加しました！`);
+    } catch (error) {
+      console.error('AI先生追加エラー:', error);
+      showError('追加失敗', 'AI先生の追加に失敗しました');
+    }
+  };
+
   return {
     // State
     allTeachers,
@@ -296,6 +352,7 @@ export const useTeacherManagement = () => {
     handleAutoSave,
     handleCancelEdit,
     handleDeleteTeacher,
+    handleAddTeacher,
     updateEditForm
   };
 };
