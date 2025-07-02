@@ -11,6 +11,8 @@ interface ChatInputProps {
   setMode: (mode: ChatMode) => void;
   isAnonymous: boolean;
   setIsAnonymous: (anonymous: boolean) => void;
+  responseLength?: 'auto' | 'short' | 'medium' | 'long';
+  setResponseLength?: (length: 'auto' | 'short' | 'medium' | 'long') => void;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ 
@@ -20,7 +22,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
   mode, 
   setMode, 
   isAnonymous, 
-  setIsAnonymous 
+  setIsAnonymous,
+  responseLength = 'auto',
+  setResponseLength
 }) => {
   const { t } = useSettings();
   const [message, setMessage] = useState('');
@@ -28,6 +32,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [isFocused, setIsFocused] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const [showResponseLengthDropdown, setShowResponseLengthDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // テキストエリアの高さを自動調整
@@ -53,16 +58,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
       if (!target.closest('.mode-dropdown')) {
         setShowModeDropdown(false);
       }
+      if (!target.closest('.response-length-dropdown')) {
+        setShowResponseLengthDropdown(false);
+      }
     };
 
-    if (showCategoryDropdown || showModeDropdown) {
+    if (showCategoryDropdown || showModeDropdown || showResponseLengthDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown, showModeDropdown]);
+  }, [showCategoryDropdown, showModeDropdown, showResponseLengthDropdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +115,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
     { value: 'detailed', label: t.detailed },
     { value: 'quick', label: t.quick },
     { value: 'encouraging', label: t.encouraging }
+  ];
+
+  const responseLengthOptions: { value: 'auto' | 'short' | 'medium' | 'long'; label: string }[] = [
+    { value: 'auto', label: '自動' },
+    { value: 'short', label: '簡潔' },
+    { value: 'medium', label: '普通' },
+    { value: 'long', label: '詳しく' }
   ];
 
   return (
@@ -236,18 +251,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
               </div>
             </div>
 
-            {/* 匿名モード */}
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="text-gray-600 font-medium">{t.anonymousMode}</span>
-              </label>
-            </div>
+            {/* 応答長制御 */}
+            {setResponseLength && (
+              <div className="flex items-center gap-2">
+                <label className="text-gray-600 font-medium">応答長:</label>
+                <div className="relative response-length-dropdown">
+                  <button
+                    onClick={() => setShowResponseLengthDropdown(!showResponseLengthDropdown)}
+                    className="pl-3 pr-8 py-2 border border-gray-300 rounded-full text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 focus:bg-blue-50 transition-all duration-200 cursor-pointer min-w-[100px] shadow-sm text-sm font-medium flex items-center justify-between"
+                  >
+                    <span>{responseLengthOptions.find(opt => opt.value === responseLength)?.label}</span>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${showResponseLengthDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showResponseLengthDropdown && (
+                    <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      {responseLengthOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setResponseLength(option.value);
+                            setShowResponseLengthDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                            responseLength === option.value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </form>
       </div>

@@ -100,11 +100,16 @@ class FirebaseTeacherPersonalityService {
         teacherId,
         teacherName: existingData?.teacherName || '',
         answers,
-        completedAt: isComplete ? new Date().toISOString() : existingData?.completedAt,
+        completedAt: isComplete ? new Date().toISOString() : existingData?.completedAt || undefined,
         lastUpdatedAt: new Date().toISOString(),
         isComplete,
         completionPercentage
       };
+
+      // completedAtがundefinedの場合は削除
+      if (updatedData.completedAt === undefined) {
+        delete (updatedData as any).completedAt;
+      }
 
       await this.saveTeacherPersonality(updatedData);
     } catch (error) {

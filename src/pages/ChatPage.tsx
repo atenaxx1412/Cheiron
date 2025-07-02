@@ -19,6 +19,7 @@ const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
   const [unsubscribeRef, setUnsubscribeRef] = useState<(() => void) | null>(null);
+  const [responseLength, setResponseLength] = useState<'auto' | 'short' | 'medium' | 'long'>('auto');
 
   // 画面初期化のみ（セッション作成なし）
   const initializePage = useCallback(async () => {
@@ -158,8 +159,15 @@ const ChatPage: React.FC = () => {
       // ユーザーメッセージをFirebaseに送信
       await firebaseChatService.sendMessage(sessionId, text, 'user', category, mode);
       
-      // AI応答を生成してFirebaseに送信
-      const aiResponse = await firebaseChatService.generateAIResponse(text, category, mode);
+      // AI応答を生成してFirebaseに送信（応答長制御付き）
+      const aiResponse = await firebaseChatService.generateAIResponse(
+        text, 
+        category, 
+        mode, 
+        responseLength,
+        sessionId,
+        true // キャッシュを使用
+      );
       await firebaseChatService.sendMessage(sessionId, aiResponse, 'ai', category, mode);
       
       // セッション作成時にunsubscribeが作成された場合、保存する
@@ -210,6 +218,8 @@ const ChatPage: React.FC = () => {
         setMode={setMode}
         isAnonymous={isAnonymous}
         setIsAnonymous={setIsAnonymous}
+        responseLength={responseLength}
+        setResponseLength={setResponseLength}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MessageSquare, BarChart3, Bot, Plus, ThumbsUp, ThumbsDown, Database, LogOut, Trash2 } from 'lucide-react';
 import { AITeacher } from '../types';
 import { Student } from '../types/user';
@@ -11,10 +11,15 @@ import LazyChatLogViewer from '../components/admin/LazychatLogViewer';
 import ChatSessionDetail from '../components/admin/ChatSessionDetail';
 import ProfileEditModal from '../components/admin/ProfileEditModal';
 import { AITeacherTab } from '../components/admin/AITeacherTab';
+import CustomTextArea from '../components/common/CustomTextArea';
 import { firebaseAITeacherService } from '../services/firebaseAITeacherService';
+import { firebaseAITestFeedbackService, AITestFeedback } from '../services/firebaseAITestFeedbackService';
+import { teacherCacheService } from '../services/teacherCacheService';
 import { nativeDialog } from '../services/nativeDialog';
 
 const AdminPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'ai-info' | 'students' | 'history' | 'feedback' | 'ai-test' | 'migration'>('dashboard');
   
 
@@ -70,7 +75,14 @@ const AdminPage: React.FC = () => {
   const [testMessages, setTestMessages] = useState<Array<{ text: string; sender: 'user' | 'ai'; timestamp: string }>>([]);
   const [testInput, setTestInput] = useState('');
   const [isTestingAI, setIsTestingAI] = useState(false);
-  const navigate = useNavigate();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    rating: 5,
+    positives: '',
+    improvements: '',
+    overall: ''
+  });
+  const [responseLength, setResponseLength] = useState<'auto' | 'short' | 'medium' | 'long'>('auto');
   
   // プロフィール情報を取得（カスタム表示名を考慮）
   const getDisplayName = () => {
@@ -80,6 +92,33 @@ const AdminPage: React.FC = () => {
   };
   
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  // URLパラメータの処理
+  useEffect(() => {
+    const tab = searchParams.get('tab') as 'dashboard' | 'ai-info' | 'students' | 'history' | 'feedback' | 'ai-test' | 'migration';
+    const teacherId = searchParams.get('teacherId');
+    
+    if (tab && ['dashboard', 'ai-info', 'students', 'history', 'feedback', 'ai-test', 'migration'].includes(tab)) {
+      setActiveTab(tab);
+    }
+    
+    if (teacherId && tab === 'ai-test') {
+      // AIテストタブで特定の先生が指定されている場合、その先生を選択
+      const targetTeacher = allTeachers.find(teacher => teacher.id === teacherId);
+      if (targetTeacher) {
+        setSelectedTestTeacher(targetTeacher);
+      }
+    }
+  }, [searchParams, allTeachers]);
+
+  // 5回会話完了の検知
+  useEffect(() => {
+    const userMessages = testMessages.filter(msg => msg.sender === 'user');
+    if (userMessages.length === 5 && selectedTestTeacher && !showFeedbackModal) {
+      // 5回会話が完了したらフィードバックモーダルを表示
+      setShowFeedbackModal(true);
+    }
+  }, [testMessages, selectedTestTeacher, showFeedbackModal]);
 
   const loadData = useCallback(async () => {
     try {
@@ -408,16 +447,24 @@ const AdminPage: React.FC = () => {
 
   // AI テスト機能のハンドラー
   const handleTestTeacherSelect = (teacher: AITeacher) => {
+    console.log('AI先生選択:', teacher.displayName);
     setSelectedTestTeacher(teacher);
-    setTestMessages([{
-      text: `${teacher.displayName}のAIテストを開始します。メッセージを送信して、AI応答の精度を確認してください。`,
-      sender: 'ai',
+    
+    const initialMessage = {
+      text: `こんにちは！${teacher.displayName}です。AIテストを開始します。何でもお気軽に質問してください。AI応答の精度を確認していただけます。`,
+      sender: 'ai' as const,
       timestamp: new Date().toISOString()
-    }]);
+    };
+    
+    setTestMessages([initialMessage]);
+    console.log('初期メッセージ設定完了:', initialMessage);
   };
 
   const handleTestMessageSend = async () => {
     if (!testInput.trim() || !selectedTestTeacher || isTestingAI) return;
+    
+    const sessionId = `test_${selectedTestTeacher.id}_${Date.now()}`;
+    const messageId = `msg_${Date.now()}`;
     
     const userMessage = {
       text: testInput,
@@ -426,16 +473,48 @@ const AdminPage: React.FC = () => {
     };
     
     setTestMessages(prev => [...prev, userMessage]);
+    const currentInput = testInput;
     setTestInput('');
     setIsTestingAI(true);
 
     try {
-      // aiChatServiceを使用してAI応答を生成
+      // キャッシュから既存の文脈を取得
+      const existingCache = await teacherCacheService.getTopicCache(selectedTestTeacher.id, sessionId);
+      
+      // ユーザーメッセージをキャッシュに追加
+      const userCachedMessage = {
+        id: messageId,
+        text: currentInput,
+        sender: 'user' as const,
+        timestamp: new Date().toISOString(),
+        importance: 'medium' as const,
+        tokens: Math.ceil(currentInput.length / 1.5) // 日本語概算
+      };
+
+      if (existingCache) {
+        await teacherCacheService.updateTopicCache(selectedTestTeacher.id, sessionId, userCachedMessage);
+      } else {
+        // 新しいキャッシュを作成
+        await teacherCacheService.saveTopicCache({
+          sessionId,
+          teacherId: selectedTestTeacher.id,
+          messages: [userCachedMessage],
+          contextTokens: userCachedMessage.tokens,
+          topicSummary: `AI先生テスト: ${currentInput.substring(0, 50)}...`,
+          lastUpdated: new Date().toISOString(),
+          cacheExpiry: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+        });
+      }
+
+      // aiChatServiceを使用してAI応答を生成（応答長制御機能付き）
       const { aiChatService } = await import('../services/aiChatService');
       const chatResponse = await aiChatService.sendMessage({
-        message: testInput,
+        message: currentInput,
         teacherId: selectedTestTeacher.id,
-        category: '日常会話'
+        category: '日常会話',
+        sessionId: sessionId,
+        useCache: true,
+        responseLength: responseLength // ユーザー選択の応答長
       });
 
       const aiMessage = {
@@ -445,6 +524,34 @@ const AdminPage: React.FC = () => {
       };
       
       setTestMessages(prev => [...prev, aiMessage]);
+
+      // AI応答もキャッシュに保存
+      const aiCachedMessage = {
+        id: `ai_${Date.now()}`,
+        text: chatResponse.response,
+        sender: 'ai' as const,
+        timestamp: new Date().toISOString(),
+        importance: 'high' as const, // AI応答は重要度高
+        tokens: Math.ceil(chatResponse.response.length / 1.5)
+      };
+
+      await teacherCacheService.updateTopicCache(selectedTestTeacher.id, sessionId, aiCachedMessage);
+
+      // ファインチューニング用データも保存
+      const conversationContext = testMessages.map(msg => `${msg.sender}: ${msg.text}`).join('\n');
+      await teacherCacheService.saveTrainingData(selectedTestTeacher.id, {
+        id: `training_${Date.now()}`,
+        context: conversationContext,
+        userMessage: currentInput,
+        aiResponse: chatResponse.response,
+        quality: 8, // テストモードでは高品質と仮定
+        responseLength: chatResponse.response.length,
+        topic: 'AIテスト',
+        timestamp: new Date().toISOString()
+      });
+
+      console.log('キャッシュとトレーニングデータ保存完了');
+
     } catch (error) {
       console.error('AI応答生成エラー:', error);
       const errorMessage = {
@@ -637,7 +744,7 @@ const AdminPage: React.FC = () => {
                       <span className="text-lg font-semibold text-gray-900">{allStudents.length}名</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">累計質問数</span>
+                      <span className="text-sm font-medium text-gray-600">累計の会話数</span>
                       <span className="text-lg font-semibold text-gray-900">{dashboardStats.totalQuestions}件</span>
                     </div>
                     <div className="pt-4 border-t border-gray-200">
@@ -770,8 +877,9 @@ const AdminPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">会話履歴</h2>
-              <div className="text-sm text-gray-600">
-                リアルタイム更新中 🟢
+              <div className="text-sm text-gray-600 flex items-center space-x-1">
+                <span>リアルタイム更新中</span>
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
               </div>
             </div>
             
@@ -1145,20 +1253,47 @@ const AdminPage: React.FC = () => {
                       {isTestingAI ? '送信中...' : '送信'}
                     </button>
                   </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    💡 ヒント: 先生の専門分野や性格に関する質問をして、AI応答の精度を確認してください
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      💡 ヒント: 先生の専門分野や性格に関する質問をして、AI応答の精度を確認してください
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-xs text-gray-600">応答長:</label>
+                      <select
+                        value={responseLength}
+                        onChange={(e) => setResponseLength(e.target.value as 'auto' | 'short' | 'medium' | 'long')}
+                        className="text-xs pl-2 pr-4 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="auto">自動</option>
+                        <option value="short">短め</option>
+                        <option value="medium">普通</option>
+                        <option value="long">詳しく</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* 50問質問システムの案内 */}
+            {/* 応答長制御機能の案内 */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">📋 AI先生の性格向上について</h3>
-              <p className="text-sm text-blue-800">
-                より精度の高いAI応答を実現するため、50問の戦略的質問システムを導入予定です。
-                このテストチャットで現在の応答品質を確認し、今後の改善にお役立てください。
-              </p>
+              <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center space-x-2">
+                <MessageSquare className="h-4 w-4 text-blue-600" />
+                <span>AI応答長最適化機能</span>
+              </h3>
+              <div className="text-sm text-blue-800 space-y-2">
+                <p>このテストチャットでは、Claude風の自然な応答長制御を体験できます：</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>自動</strong>: メッセージ内容と文脈から最適な長さを自動判定</li>
+                  <li><strong>短め</strong>: 簡潔な1-2文での応答（挨拶や確認に最適）</li>
+                  <li><strong>普通</strong>: 2-4文での適度な応答（一般的な質問に最適）</li>
+                  <li><strong>詳しく</strong>: 4-6文での詳細な応答（説明や相談に最適）</li>
+                </ul>
+                <p className="text-xs pt-1 flex items-center space-x-1">
+                  <MessageSquare className="h-3 w-3 text-blue-500" />
+                  <span>過去の会話履歴も考慮して、自然な長さ調整を行います</span>
+                </p>
+              </div>
             </div>
           </div>
         );
@@ -1763,6 +1898,128 @@ const AdminPage: React.FC = () => {
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* フィードバック入力モーダル */}
+      {showFeedbackModal && selectedTestTeacher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                AIテストのフィードバック
+              </h2>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {selectedTestTeacher.displayName}との5回の会話が完了しました。フィードバックをお聞かせください。
+              </p>
+
+              {/* 評価 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  総合評価（1-10点）
+                </label>
+                <select
+                  value={feedbackForm.rating}
+                  onChange={(e) => setFeedbackForm({...feedbackForm, rating: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {[...Array(10)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}点</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 良かった点 */}
+              <CustomTextArea
+                label="良かった点"
+                value={feedbackForm.positives}
+                onChange={(e) => setFeedbackForm({...feedbackForm, positives: e.target.value})}
+                rows={3}
+                variant="modern"
+                placeholder="AI先生の応答で良かった点をお書きください"
+              />
+
+              {/* 改善点 */}
+              <CustomTextArea
+                label="改善してほしい点"
+                value={feedbackForm.improvements}
+                onChange={(e) => setFeedbackForm({...feedbackForm, improvements: e.target.value})}
+                rows={3}
+                variant="modern"
+                placeholder="改善してほしい点があればお書きください"
+              />
+
+              {/* 全体的な感想 */}
+              <CustomTextArea
+                label="全体的な感想"
+                value={feedbackForm.overall}
+                onChange={(e) => setFeedbackForm({...feedbackForm, overall: e.target.value})}
+                rows={3}
+                variant="modern"
+                placeholder="全体的な感想をお聞かせください"
+              />
+            </div>
+
+            {/* ボタン */}
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                後で入力
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    // フィードバックデータの保存
+                    const feedbackData: Omit<AITestFeedback, 'id'> = {
+                      teacherId: selectedTestTeacher.id,
+                      teacherName: selectedTestTeacher.displayName,
+                      rating: feedbackForm.rating,
+                      positives: feedbackForm.positives,
+                      improvements: feedbackForm.improvements,
+                      overall: feedbackForm.overall,
+                      timestamp: new Date().toISOString(),
+                      testerName: getDisplayName()
+                    };
+
+                    await firebaseAITestFeedbackService.saveFeedback(feedbackData);
+                    
+                    // モーダルを閉じる
+                    setShowFeedbackModal(false);
+                    
+                    // フォームをリセット
+                    setFeedbackForm({
+                      rating: 5,
+                      positives: '',
+                      improvements: '',
+                      overall: ''
+                    });
+                    
+                    // テストメッセージをリセット
+                    setTestMessages([]);
+                    
+                    await nativeDialog.showInfo('送信完了', 'フィードバックを送信しました。ありがとうございます！');
+                  } catch (error) {
+                    console.error('フィードバック保存エラー:', error);
+                    await nativeDialog.showError('保存失敗', 'フィードバックの保存に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                送信
               </button>
             </div>
           </div>

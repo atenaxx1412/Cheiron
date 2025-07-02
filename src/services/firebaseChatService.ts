@@ -6,7 +6,6 @@ import {
   query,
   where,
   limit,
-  orderBy,
   onSnapshot,
   updateDoc,
   deleteDoc
@@ -563,11 +562,10 @@ export class FirebaseChatService {
   // 生徒の最終会話日を取得
   async getLastChatDateByStudentId(studentId: string): Promise<string | null> {
     try {
+      // 複合インデックスを避けるため、studentIdのみで絞り込み、クライアントサイドでソート
       const sessionsQuery = query(
         collection(db, this.CHAT_SESSIONS),
-        where('studentId', '==', studentId),
-        orderBy('updatedAt', 'desc'),
-        limit(1)
+        where('studentId', '==', studentId)
       );
       
       const snapshot = await getDocs(sessionsQuery);
@@ -575,7 +573,15 @@ export class FirebaseChatService {
         return null;
       }
       
-      const latestSession = snapshot.docs[0].data();
+      // クライアントサイドで最新のセッションを取得
+      const sessions = snapshot.docs.map(doc => doc.data());
+      sessions.sort((a, b) => {
+        const aTime = a.updatedAt?.toDate?.() || new Date(a.updatedAt);
+        const bTime = b.updatedAt?.toDate?.() || new Date(b.updatedAt);
+        return bTime.getTime() - aTime.getTime();
+      });
+      
+      const latestSession = sessions[0];
       const lastDate = latestSession.updatedAt?.toDate?.() || new Date(latestSession.updatedAt);
       return lastDate.toLocaleDateString('ja-JP');
     } catch (error) {
@@ -584,8 +590,15 @@ export class FirebaseChatService {
     }
   }
 
-  // Gemini AIを使用したレスポンス生成
-  async generateAIResponse(userMessage: string, category: Category, mode: ChatMode): Promise<string> {
+  // Gemini AIを使用したレスポンス生成（応答長制御対応）
+  async generateAIResponse(
+    userMessage: string, 
+    category: Category, 
+    mode: ChatMode,
+    responseLength?: 'auto' | 'short' | 'medium' | 'long',
+    sessionId?: string,
+    useCache?: boolean
+  ): Promise<string> {
     try {
       // 現在選択されている先生を取得
       const lastSelectedTeacherId = localStorage.getItem('lastSelectedTeacher');
@@ -601,12 +614,15 @@ export class FirebaseChatService {
         throw new Error('AI先生が見つかりません');
       }
 
-      // AI会話サービスを使用してレスポンスを生成
+      // AI会話サービスを使用してレスポンスを生成（応答長制御付き）
       const chatResponse = await aiChatService.sendMessage({
         message: userMessage,
         teacherId,
         category,
-        mode
+        mode,
+        responseLength: responseLength || 'auto',
+        sessionId,
+        useCache: useCache || false
       });
       
       return chatResponse.response;

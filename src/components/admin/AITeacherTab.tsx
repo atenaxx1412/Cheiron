@@ -1,15 +1,27 @@
 import React, { ChangeEvent } from 'react';
-import { Plus, Edit3, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit3, Trash2, MessageSquare } from 'lucide-react';
 import ImageUpload from '../ImageUpload';
 import CustomTextArea from '../common/CustomTextArea';
 import personalityQuestionsData from '../../data/teacherPersonalityQuestions.json';
 import { useTeacherManagement } from '../../hooks/useTeacherManagement';
+import { firebaseAITestFeedbackService, AITestFeedback } from '../../services/firebaseAITestFeedbackService';
+import { firebaseTeacherPersonalityService } from '../../services/firebaseTeacherPersonalityService';
 
 interface AITeacherTabProps {
   // 将来的にpropsで状態を受け取る予定
 }
 
 export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
+  const navigate = useNavigate();
+  const [teacherFeedbacks, setTeacherFeedbacks] = React.useState<AITestFeedback[]>([]);
+  const [showFeedbackSection, setShowFeedbackSection] = React.useState(false);
+  const [feedbackStats, setFeedbackStats] = React.useState<{
+    totalCount: number;
+    averageRating: number;
+    ratingDistribution: Record<number, number>;
+  } | null>(null);
+  
   // カスタムフックを使用して状態管理と操作を取得
   const {
     // State
@@ -46,6 +58,34 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
     handleAddTeacher
   } = useTeacherManagement();
 
+  // AIテスト画面への遷移
+  const handleAITest = () => {
+    if (selectedTeacher) {
+      // AdminPageのAIテストタブに遷移
+      navigate(`/admin?tab=ai-test&teacherId=${selectedTeacher.id}`);
+    }
+  };
+
+  // フィードバックデータを読み込む
+  const loadFeedbackData = React.useCallback(async () => {
+    if (selectedTeacher && showFeedbackSection) {
+      try {
+        const feedbacks = await firebaseAITestFeedbackService.getFeedbackByTeacher(selectedTeacher.id);
+        const stats = await firebaseAITestFeedbackService.getFeedbackStats(selectedTeacher.id);
+        setTeacherFeedbacks(feedbacks);
+        setFeedbackStats(stats);
+      } catch (error) {
+        console.error('フィードバック読み込みエラー:', error);
+      }
+    }
+  }, [selectedTeacher, showFeedbackSection]);
+
+  // selectedTeacherが変更されたときにフィードバックを読み込む
+  React.useEffect(() => {
+    if (selectedTeacher && showFeedbackSection) {
+      loadFeedbackData();
+    }
+  }, [selectedTeacher, showFeedbackSection, loadFeedbackData]);
 
   return (
     <div className="space-y-6">
@@ -130,6 +170,13 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
                 <h3 className="text-lg font-medium text-gray-900">AI先生プロフィール</h3>
                 {!isEditingTeacher ? (
                   <div className="flex space-x-2">
+                    <button 
+                      onClick={handleAITest}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2"
+                    >
+                      <MessageSquare size={16} />
+                      <span>AIテスト</span>
+                    </button>
                     <button 
                       onClick={handleEditTeacher}
                       className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
@@ -308,10 +355,28 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
                           </p>
                           <textarea
                             value={personalityAnswers[question.id] || ''}
-                            onChange={(e) => setPersonalityAnswers({
-                              ...personalityAnswers,
-                              [question.id]: e.target.value
-                            })}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              setPersonalityAnswers({
+                                ...personalityAnswers,
+                                [question.id]: newValue
+                              });
+                            }}
+                            onBlur={async (e) => {
+                              if (selectedTeacher && e.target.value.trim()) {
+                                try {
+                                  await firebaseTeacherPersonalityService.updateAnswer(
+                                    selectedTeacher.id,
+                                    question.id,
+                                    e.target.value,
+                                    question.weight,
+                                    question.category
+                                  );
+                                } catch (error) {
+                                  console.error('性格回答保存エラー:', error);
+                                }
+                              }
+                            }}
                             rows={2}
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             placeholder="回答を入力..."
@@ -504,6 +569,109 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
                       <span className="text-sm font-medium text-gray-700">NGワードフィルターを有効化</span>
                     </label>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* AIテストフィードバック表示セクション */}
+          <div className="bg-white shadow-sm rounded border">
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-base font-semibold text-gray-800 flex items-center space-x-2">
+                  <MessageSquare size={18} className="text-purple-600" />
+                  <span>AIテストフィードバック</span>
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowFeedbackSection(!showFeedbackSection);
+                    if (!showFeedbackSection) {
+                      loadFeedbackData();
+                    }
+                  }}
+                  className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
+                >
+                  {showFeedbackSection ? '折りたたむ' : 'フィードバックを見る'}
+                </button>
+              </div>
+              
+              {showFeedbackSection && (
+                <div className="space-y-4 border-t pt-3">
+                  {feedbackStats && feedbackStats.totalCount > 0 ? (
+                    <>
+                      {/* 統計情報 */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <div className="text-2xl font-bold text-purple-600">{feedbackStats.totalCount}</div>
+                            <div className="text-xs text-gray-600">テスト回数</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-purple-600">{feedbackStats.averageRating}</div>
+                            <div className="text-xs text-gray-600">平均評価</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-purple-600">
+                              {Object.entries(feedbackStats.ratingDistribution).sort(([a], [b]) => parseInt(b) - parseInt(a))[0]?.[0] || '-'}
+                            </div>
+                            <div className="text-xs text-gray-600">最頻評価</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* フィードバック一覧 */}
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {teacherFeedbacks.map((feedback) => (
+                          <div key={feedback.id} className="border rounded-lg p-3 bg-gray-50">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-semibold text-sm">評価: {feedback.rating}/10点</span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(feedback.timestamp).toLocaleDateString('ja-JP')}
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-500">
+                                テスター: {feedback.testerName || '匿名'}
+                              </span>
+                            </div>
+                            
+                            {feedback.positives && (
+                              <div className="mb-2">
+                                <div className="text-xs font-medium text-green-700 mb-1">良かった点:</div>
+                                <div className="text-sm text-gray-700 bg-white rounded p-2">
+                                  {feedback.positives}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {feedback.improvements && (
+                              <div className="mb-2">
+                                <div className="text-xs font-medium text-orange-700 mb-1">改善点:</div>
+                                <div className="text-sm text-gray-700 bg-white rounded p-2">
+                                  {feedback.improvements}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {feedback.overall && (
+                              <div>
+                                <div className="text-xs font-medium text-blue-700 mb-1">全体的な感想:</div>
+                                <div className="text-sm text-gray-700 bg-white rounded p-2">
+                                  {feedback.overall}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <MessageSquare className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                      <p>まだテストフィードバックがありません</p>
+                      <p className="text-sm">「AIテスト」ボタンからテストを実行してください</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

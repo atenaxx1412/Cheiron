@@ -6,24 +6,35 @@ import AdminPage from './pages/AdminPage';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { migrationService } from './services/migrationService';
+import { cacheCleanupService } from './services/cacheCleanupService';
 
 function App() {
-  // アプリ起動時にマイグレーションを実行
+  // アプリ起動時にマイグレーションとキャッシュクリーンアップを実行
   useEffect(() => {
-    const runMigrationIfNeeded = async () => {
+    const runInitialization = async () => {
       try {
+        // マイグレーション実行
         if (migrationService.isMigrationNeeded()) {
           console.log('マイグレーションが必要です。実行中...');
           await migrationService.runFullMigration();
         } else {
           console.log('マイグレーションは完了しています');
         }
+
+        // キャッシュクリーンアップサービス開始
+        cacheCleanupService.startAutoCleanup();
+        
       } catch (error) {
-        console.error('マイグレーションエラー:', error);
+        console.error('初期化エラー:', error);
       }
     };
     
-    runMigrationIfNeeded();
+    runInitialization();
+
+    // クリーンアップ関数
+    return () => {
+      cacheCleanupService.stopAutoCleanup();
+    };
   }, []);
 
   const isAuthenticated = () => {
