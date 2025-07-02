@@ -68,18 +68,18 @@ const Toast: React.FC<ToastProps> = ({
   };
 
   return (
-    <div className={`max-w-sm w-full ${getBackgroundColor()} border rounded-lg shadow-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden`}>
+    <div className={`min-w-80 max-w-md w-full ${getBackgroundColor()} border rounded-lg shadow-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden`}>
       <div className="p-4">
         <div className="flex items-start">
           <div className="flex-shrink-0">
             {getIcon()}
           </div>
-          <div className="ml-3 w-0 flex-1 pt-0.5">
-            <p className={`text-sm font-medium ${getTextColor()}`}>
+          <div className="ml-3 flex-1 pt-0.5 min-w-0">
+            <p className={`text-sm font-medium ${getTextColor()} whitespace-nowrap overflow-hidden text-ellipsis`} style={{writingMode: 'horizontal-tb'}}>
               {title}
             </p>
             {message && (
-              <p className={`mt-1 text-sm ${getTextColor()} opacity-80`}>
+              <p className={`mt-1 text-sm ${getTextColor()} opacity-80 break-words`} style={{writingMode: 'horizontal-tb'}}>
                 {message}
               </p>
             )}

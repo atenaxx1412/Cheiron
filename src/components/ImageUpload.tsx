@@ -87,11 +87,12 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     <div className="space-y-4">
       {/* 画像アップロード */}
       <div>
-        {/* 現在の画像表示 */}
-        <div className="flex items-center space-x-4 mb-4">
+        {/* 画像表示とファイル選択ボタンを横並び */}
+        <div className="flex items-center space-x-6">
+          {/* 現在の画像表示 */}
           <div 
             onClick={handleBrowseClick}
-            className="w-20 h-20 rounded-full border-2 border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 cursor-pointer hover:border-blue-400 transition-colors"
+            className="w-28 h-28 rounded-full border-2 border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 cursor-pointer hover:border-blue-400 transition-colors"
             title="クリックして画像を選択"
           >
             {currentImage ? (
@@ -105,44 +106,46 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             )}
           </div>
           
-          {currentImage && (
+          {/* ファイル選択ボタン */}
+          <div className="flex items-center space-x-3">
             <button
-              onClick={handleRemoveImage}
-              className="p-1 text-red-600 hover:text-red-800 rounded-full hover:bg-red-50"
-              title="画像を削除"
+              onClick={handleBrowseClick}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 flex items-center space-x-2"
             >
-              <X size={16} />
+              <Upload size={16} />
+              <span>ファイルを選択</span>
             </button>
-          )}
+            
+            {currentImage && (
+              <button
+                onClick={handleRemoveImage}
+                className="p-1 text-red-600 hover:text-red-800 rounded-full hover:bg-red-50"
+                title="画像を削除"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* ドラッグ&ドロップエリア */}
+        {/* ドラッグ&ドロップエリア（非表示の背景エリア） */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+          className={`border-2 border-dashed rounded-lg p-4 mt-4 text-center transition-colors ${
             isDragging 
               ? 'border-blue-400 bg-blue-50' 
               : 'border-gray-300 hover:border-gray-400'
           } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           {isUploading ? (
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               <p className="text-sm text-gray-600">アップロード中...</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <Camera className="h-12 w-12 text-gray-400 mb-2" />
-              <button
-                onClick={handleBrowseClick}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 flex items-center space-x-2"
-              >
-                <Upload size={16} />
-                <span>ファイルを選択</span>
-              </button>
-            </div>
+            <p className="text-sm text-gray-500">画像をここにドラッグ&ドロップ</p>
           )}
         </div>
 
