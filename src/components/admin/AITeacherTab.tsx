@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { ChangeEvent } from 'react';
 import { Plus, Edit3, Trash2 } from 'lucide-react';
 import ImageUpload from '../ImageUpload';
+import CustomTextArea from '../common/CustomTextArea';
 import personalityQuestionsData from '../../data/teacherPersonalityQuestions.json';
 import { useTeacherManagement } from '../../hooks/useTeacherManagement';
 
@@ -239,37 +240,25 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    挨拶
-                  </label>
-                  <textarea
-                    value={isEditingTeacher ? editForm.greeting : (selectedTeacher.greeting || '')}
-                    onChange={(e) => isEditingTeacher && setEditForm({...editForm, greeting: e.target.value})}
-                    rows={3}
-                    className={`block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      isEditingTeacher ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                    readOnly={!isEditingTeacher}
-                    placeholder="こんにちは！何でもお気軽にご相談ください。"
-                  />
-                </div>
+                <CustomTextArea
+                  label="挨拶"
+                  value={isEditingTeacher ? editForm.greeting : (selectedTeacher.greeting || '')}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => isEditingTeacher && setEditForm({...editForm, greeting: e.target.value})}
+                  rows={3}
+                  variant={isEditingTeacher ? 'modern' : 'minimal'}
+                  readOnly={!isEditingTeacher}
+                  placeholder="こんにちは！何でもお気軽にご相談ください。"
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    性格・特徴
-                  </label>
-                  <textarea
-                    value={isEditingTeacher ? editForm.personality : selectedTeacher.personality}
-                    onChange={(e) => isEditingTeacher && setEditForm({...editForm, personality: e.target.value})}
-                    rows={4}
-                    className={`block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      isEditingTeacher ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                    readOnly={!isEditingTeacher}
-                    placeholder="例: 温厚で親しみやすく、生徒の目線に立った指導を心がける先生です。"
-                  />
-                </div>
+                <CustomTextArea
+                  label="性格・特徴"
+                  value={isEditingTeacher ? editForm.personality : selectedTeacher.personality}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => isEditingTeacher && setEditForm({...editForm, personality: e.target.value})}
+                  rows={4}
+                  variant={isEditingTeacher ? 'modern' : 'minimal'}
+                  readOnly={!isEditingTeacher}
+                  placeholder="例: 温厚で親しみやすく、生徒の目線に立った指導を心がける先生です。"
+                />
               </div>
             </div>
           </div>
@@ -351,38 +340,30 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
               {showDetailInfo && (
                 <div className="space-y-4 border-t pt-3">
                   {/* 先生詳細情報 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      先生詳細情報
-                    </label>
-                    <textarea
-                      value={editForm.teacherInfo}
-                      onChange={(e) => {
-                        setEditForm({...editForm, teacherInfo: e.target.value});
-                        handleAutoSave({ teacherInfo: e.target.value });
-                      }}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                      placeholder="先生の詳細な背景情報、教育方針、専門知識等を入力..."
-                    />
-                  </div>
+                  <CustomTextArea
+                    label="先生詳細情報"
+                    value={editForm.teacherInfo}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                      setEditForm({...editForm, teacherInfo: e.target.value});
+                      handleAutoSave({ teacherInfo: e.target.value });
+                    }}
+                    rows={4}
+                    variant="modern"
+                    placeholder="先生の詳細な背景情報、教育方針、専門知識等を入力..."
+                  />
 
                   {/* 管理者用フリーメモ */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      管理者用フリーメモ
-                    </label>
-                    <textarea
-                      value={editForm.freeNotes}
-                      onChange={(e) => {
-                        setEditForm({...editForm, freeNotes: e.target.value});
-                        handleAutoSave({ freeNotes: e.target.value });
-                      }}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                      placeholder="管理者専用メモ（学生には表示されません）"
-                    />
-                  </div>
+                  <CustomTextArea
+                    label="管理者用フリーメモ"
+                    value={editForm.freeNotes}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                      setEditForm({...editForm, freeNotes: e.target.value});
+                      handleAutoSave({ freeNotes: e.target.value });
+                    }}
+                    rows={3}
+                    variant="modern"
+                    placeholder="管理者専用メモ（学生には表示されません）"
+                  />
 
                   {/* 返信カスタマイズ */}
                   <div>
@@ -588,32 +569,24 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
               </div>
 
               {/* 挨拶 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  挨拶
-                </label>
-                <textarea
-                  value={newTeacherForm.greeting || ''}
-                  onChange={(e) => setNewTeacherForm({...newTeacherForm, greeting: e.target.value})}
-                  rows={3}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="例: こんにちは！数学の田中です。一緒に楽しく学びましょう！"
-                />
-              </div>
+              <CustomTextArea
+                label="挨拶"
+                value={newTeacherForm.greeting || ''}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewTeacherForm({...newTeacherForm, greeting: e.target.value})}
+                rows={3}
+                variant="modern"
+                placeholder="例: こんにちは！数学の田中です。一緒に楽しく学びましょう！"
+              />
 
               {/* 性格・特徴 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  性格・特徴
-                </label>
-                <textarea
-                  value={newTeacherForm.personality || ''}
-                  onChange={(e) => setNewTeacherForm({...newTeacherForm, personality: e.target.value})}
-                  rows={3}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="例: 明るく親しみやすい性格で、学生との対話を大切にします"
-                />
-              </div>
+              <CustomTextArea
+                label="性格・特徴"
+                value={newTeacherForm.personality || ''}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewTeacherForm({...newTeacherForm, personality: e.target.value})}
+                rows={3}
+                variant="modern"
+                placeholder="例: 明るく親しみやすい性格で、学生との対話を大切にします"
+              />
             </div>
 
             {/* ボタン */}
