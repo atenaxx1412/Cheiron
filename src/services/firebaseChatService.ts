@@ -6,6 +6,7 @@ import {
   query,
   where,
   limit,
+  orderBy,
   onSnapshot,
   updateDoc,
   deleteDoc
@@ -520,6 +521,66 @@ export class FirebaseChatService {
     } catch (error) {
       console.error('チャットセッション削除エラー:', error);
       throw error;
+    }
+  }
+
+  // 生徒別の会話セッション数を取得
+  async getChatCountByStudentId(studentId: string): Promise<number> {
+    try {
+      const sessionsQuery = query(
+        collection(db, this.CHAT_SESSIONS),
+        where('studentId', '==', studentId)
+      );
+      
+      const snapshot = await getDocs(sessionsQuery);
+      return snapshot.size;
+    } catch (error) {
+      console.error('生徒別会話数取得エラー:', error);
+      return 0;
+    }
+  }
+
+  // 複数生徒の会話セッション数を一括取得
+  async getChatCountsForStudents(studentIds: string[]): Promise<Record<string, number>> {
+    try {
+      const results: Record<string, number> = {};
+      
+      // 全セッションを取得して生徒別にカウント
+      const allSessions = await this.getAllChatSessions();
+      
+      // 各生徒のセッション数をカウント
+      studentIds.forEach(studentId => {
+        results[studentId] = allSessions.filter(session => session.studentId === studentId).length;
+      });
+      
+      return results;
+    } catch (error) {
+      console.error('複数生徒会話数取得エラー:', error);
+      return {};
+    }
+  }
+
+  // 生徒の最終会話日を取得
+  async getLastChatDateByStudentId(studentId: string): Promise<string | null> {
+    try {
+      const sessionsQuery = query(
+        collection(db, this.CHAT_SESSIONS),
+        where('studentId', '==', studentId),
+        orderBy('updatedAt', 'desc'),
+        limit(1)
+      );
+      
+      const snapshot = await getDocs(sessionsQuery);
+      if (snapshot.empty) {
+        return null;
+      }
+      
+      const latestSession = snapshot.docs[0].data();
+      const lastDate = latestSession.updatedAt?.toDate?.() || new Date(latestSession.updatedAt);
+      return lastDate.toLocaleDateString('ja-JP');
+    } catch (error) {
+      console.error('最終会話日取得エラー:', error);
+      return null;
     }
   }
 

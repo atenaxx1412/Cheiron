@@ -241,6 +241,29 @@ export const useTeacherManagement = () => {
     setIsEditingTeacher(false);
   };
 
+  // AI先生削除処理
+  const handleDeleteTeacher = async () => {
+    if (!selectedTeacher) return;
+    
+    if (!window.confirm(`「${selectedTeacher.displayName}」を削除してもよろしいですか？\nこの操作は取り消すことができません。`)) {
+      return;
+    }
+    
+    try {
+      await firebaseAITeacherService.deleteTeacher(selectedTeacher.id);
+      
+      // 削除後、一覧に戻る
+      setViewMode('list');
+      setSelectedTeacher(null);
+      setIsEditingTeacher(false);
+      
+      showSuccess('削除完了', `${selectedTeacher.displayName}を削除しました`);
+    } catch (error) {
+      console.error('AI先生削除エラー:', error);
+      showError('削除失敗', 'AI先生の削除に失敗しました');
+    }
+  };
+
   return {
     // State
     allTeachers,
@@ -272,6 +295,7 @@ export const useTeacherManagement = () => {
     handleSaveTeacher,
     handleAutoSave,
     handleCancelEdit,
+    handleDeleteTeacher,
     updateEditForm
   };
 };

@@ -40,7 +40,8 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
     handleEditTeacher,
     handleSaveTeacher,
     handleAutoSave,
-    handleCancelEdit
+    handleCancelEdit,
+    handleDeleteTeacher
   } = useTeacherManagement();
 
 
@@ -126,13 +127,22 @@ export const AITeacherTab: React.FC<AITeacherTabProps> = () => {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900">AI先生プロフィール</h3>
                 {!isEditingTeacher ? (
-                  <button 
-                    onClick={handleEditTeacher}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
-                  >
-                    <Edit3 size={16} />
-                    <span>編集</span>
-                  </button>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={handleEditTeacher}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
+                    >
+                      <Edit3 size={16} />
+                      <span>編集</span>
+                    </button>
+                    <button 
+                      onClick={handleDeleteTeacher}
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center space-x-2"
+                    >
+                      <Trash2 size={16} />
+                      <span>削除</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex space-x-2">
                     <button 

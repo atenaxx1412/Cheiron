@@ -10,7 +10,7 @@ import { firebaseChatService } from '../services/firebaseChatService';
 import LazyChatLogViewer from '../components/admin/LazychatLogViewer';
 import ChatSessionDetail from '../components/admin/ChatSessionDetail';
 import ProfileEditModal from '../components/admin/ProfileEditModal';
-import AITeacherTab from '../components/admin/AITeacherTab';
+import { AITeacherTab } from '../components/admin/AITeacherTab';
 import { firebaseAITeacherService } from '../services/firebaseAITeacherService';
 
 const AdminPage: React.FC = () => {
@@ -90,7 +90,23 @@ const AdminPage: React.FC = () => {
       setAllChatSessions(allChatSessionsData);
       setRecentChatSessions(allChatSessionsData.slice(0, 5));
       
-      setAllStudents(students);
+      // 各生徒の実際の会話回数と最終会話日を取得
+      const studentIds = students.map(student => student.id);
+      const chatCounts = await firebaseChatService.getChatCountsForStudents(studentIds);
+      
+      // 各生徒の最終会話日を取得
+      const studentsWithChatData = await Promise.all(
+        students.map(async (student) => {
+          const lastChatDate = await firebaseChatService.getLastChatDateByStudentId(student.id);
+          return {
+            ...student,
+            chatCount: chatCounts[student.id] || 0,
+            lastChatDate: lastChatDate || '-'
+          };
+        })
+      );
+      
+      setAllStudents(studentsWithChatData);
     } catch (error) {
       console.error('データ読み込みエラー:', error);
       alert('データの読み込みに失敗しました');
@@ -356,6 +372,39 @@ const AdminPage: React.FC = () => {
     console.log('管理者表示名を更新:', newDisplayName);
   };
 
+  // データベース削除機能
+  const handleDeleteAllChats = async () => {
+    if (!window.confirm('全てのチャットデータを削除します。\nこの操作は取り消すことができません。\n続行しますか？')) {
+      return;
+    }
+    
+    try {
+      const result = await firebaseChatService.deleteAllChatData();
+      setShowDeleteModal(false);
+      await loadData();
+      alert(`全てのチャットデータを削除しました\n削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
+    } catch (error) {
+      console.error('チャットデータ削除エラー:', error);
+      alert('チャットデータの削除に失敗しました');
+    }
+  };
+
+  const handleDeleteOldChats = async (days: number) => {
+    if (!window.confirm(`${days}日より古いチャットデータを削除します。\nこの操作は取り消すことができません。\n続行しますか？`)) {
+      return;
+    }
+    
+    try {
+      const result = await firebaseChatService.deleteOldChatData(days);
+      setShowDeleteModal(false);
+      await loadData();
+      alert(`${days}日より古いチャットデータを削除しました\n削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
+    } catch (error) {
+      console.error('古いチャットデータ削除エラー:', error);
+      alert(`古いチャットデータの削除に失敗しました`);
+    }
+  };
+
   // AI テスト機能のハンドラー
   const handleTestTeacherSelect = (teacher: AITeacher) => {
     setSelectedTestTeacher(teacher);
@@ -420,7 +469,8 @@ const AdminPage: React.FC = () => {
     { id: 'students', label: '生徒管理', icon: Users },
     { id: 'history', label: '会話履歴', icon: MessageSquare },
     { id: 'feedback', label: 'フィードバック', icon: ThumbsUp },
-    { id: 'ai-test', label: 'AIテスト', icon: MessageSquare }
+    { id: 'ai-test', label: 'AIテスト', icon: MessageSquare },
+    { id: 'migration', label: 'データ管理', icon: Database }
   ];
 
   const renderContent = () => {
@@ -635,10 +685,10 @@ const AdminPage: React.FC = () => {
                       学年・クラス
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      最終相談
+                      最終会話
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      相談回数
+                      会話回数
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       操作
@@ -661,7 +711,14 @@ const AdminPage: React.FC = () => {
                         {student.lastChatDate || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.chatCount}回
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          student.chatCount === 0 ? 'bg-gray-100 text-gray-600' :
+                          student.chatCount < 5 ? 'bg-blue-100 text-blue-700' :
+                          student.chatCount < 10 ? 'bg-green-100 text-green-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
+                          {student.chatCount}回
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button 
@@ -1105,6 +1162,88 @@ const AdminPage: React.FC = () => {
           </div>
         );
 
+      case 'migration':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900">データ管理</h2>
+              <div className="text-sm text-gray-600">
+                データベースのメンテナンスおよび削除機能
+              </div>
+            </div>
+            
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">チャットデータの削除</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  開発中のテストデータや古いチャットデータを削除できます。この操作は取り消すことができません。
+                </p>
+                
+                <div className="space-y-4">
+                  {/* 全削除ボタン */}
+                  <div className="border border-red-200 rounded-lg p-4">
+                    <h4 className="font-medium text-red-700 mb-2">全チャットデータ削除</h4>
+                    <p className="text-sm text-red-600 mb-3">
+                      全てのチャットセッションとメッセージを削除します。
+                    </p>
+                    <button
+                      onClick={handleDeleteAllChats}
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center space-x-2"
+                    >
+                      <Trash2 size={16} />
+                      <span>全て削除</span>
+                    </button>
+                  </div>
+                  
+                  {/* 部分削除オプション */}
+                  <div className="border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-medium text-yellow-700 mb-2">古いデータの削除</h4>
+                    <p className="text-sm text-yellow-600 mb-3">
+                      指定した期間より古いチャットデータを削除します。
+                    </p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <button
+                        onClick={() => handleDeleteOldChats(1)}
+                        className="py-2 px-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm"
+                      >
+                        1日より古い
+                      </button>
+                      <button
+                        onClick={() => handleDeleteOldChats(3)}
+                        className="py-2 px-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm"
+                      >
+                        3日より古い
+                      </button>
+                      <button
+                        onClick={() => handleDeleteOldChats(7)}
+                        className="py-2 px-3 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 text-sm"
+                      >
+                        1週間より古い
+                      </button>
+                      <button
+                        onClick={() => handleDeleteOldChats(30)}
+                        className="py-2 px-3 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 text-sm"
+                      >
+                        1ヶ月より古い
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-700 mb-2">データベース情報</h4>
+                    <div className="text-sm text-blue-600">
+                      <p>現在のチャットセッション数: {allChatSessions.length}件</p>
+                      <p>登録生徒数: {allStudents.length}名</p>
+                      <p>登録AI先生数: {allTeachers.length}名</p>
+                      <p>フィードバック数: {feedbackStats.totalFeedbacks}件</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1143,15 +1282,6 @@ const AdminPage: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              {/* 開発用データ削除ボタン */}
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="p-2 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-50"
-                title="開発用：チャットデータ削除"
-              >
-                <Database size={20} />
-              </button>
-              
               <button
                 onClick={() => setShowProfileModal(true)}
                 className="text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-md transition-colors"
@@ -1576,39 +1706,39 @@ const AdminPage: React.FC = () => {
               <div className="space-y-3">
                 {/* 全削除ボタン */}
                 <button
-                  onClick={() => alert('この機能は一時的に無効化されています')}
+                  onClick={handleDeleteAllChats}
                   disabled={false}
                   className="w-full py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
                   <Trash2 size={16} />
-                  <span>全チャットデータを削除（無効化中）</span>
+                  <span>全チャットデータを削除</span>
                 </button>
                 
                 {/* 部分削除オプション */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => alert('この機能は一時的に無効化されています')}
+                    onClick={() => handleDeleteOldChats(1)}
                     disabled={false}
                     className="py-2 px-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 text-sm"
                   >
                     1日より古い
                   </button>
                   <button
-                    onClick={() => alert('この機能は一時的に無効化されています')}
+                    onClick={() => handleDeleteOldChats(3)}
                     disabled={false}
                     className="py-2 px-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 text-sm"
                   >
                     3日より古い
                   </button>
                   <button
-                    onClick={() => alert('この機能は一時的に無効化されています')}
+                    onClick={() => handleDeleteOldChats(7)}
                     disabled={false}
                     className="py-2 px-3 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50 text-sm"
                   >
                     1週間より古い
                   </button>
                   <button
-                    onClick={() => alert('この機能は一時的に無効化されています')}
+                    onClick={() => handleDeleteOldChats(30)}
                     disabled={false}
                     className="py-2 px-3 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50 text-sm"
                   >
