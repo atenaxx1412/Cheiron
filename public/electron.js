@@ -73,3 +73,51 @@ ipcMain.handle('show-alert-dialog', async (event, title, message, type = 'info')
     });
     return result;
 });
+
+// 汎用ダイアログハンドラー（新しいダイアログサービス用）
+ipcMain.handle('show-dialog', async (event, options) => {
+    const {
+        type = 'info',
+        title = 'Cheiron',
+        message,
+        detail,
+        buttons = ['OK'],
+        defaultId = 0,
+        cancelId
+    } = options;
+
+    const result = await dialog.showMessageBox(mainWindow, {
+        type: 'none', // カスタムアイコンを優先
+        title: title,
+        message: message || 'お知らせ',
+        detail: detail || '',
+        icon: path.join(__dirname, 'Cheiron_512x512.png'), // 超高解像度アイコン
+        buttons: buttons,
+        defaultId: defaultId,
+        cancelId: cancelId,
+        noLink: true,
+        normalizeAccessKeys: false
+    });
+    
+    return {
+        response: result.response,
+        checkboxChecked: result.checkboxChecked
+    };
+});
+
+// 確認ダイアログ
+ipcMain.handle('show-confirm-dialog', async (event, title, message, detail = '') => {
+    const result = await dialog.showMessageBox(mainWindow, {
+        type: 'none',
+        title: 'Cheiron',
+        message: title || '確認',
+        detail: message || detail,
+        icon: path.join(__dirname, 'Cheiron_512x512.png'),
+        buttons: ['はい', 'いいえ'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        normalizeAccessKeys: false
+    });
+    return result.response === 0;
+});

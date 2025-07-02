@@ -12,6 +12,7 @@ import ChatSessionDetail from '../components/admin/ChatSessionDetail';
 import ProfileEditModal from '../components/admin/ProfileEditModal';
 import { AITeacherTab } from '../components/admin/AITeacherTab';
 import { firebaseAITeacherService } from '../services/firebaseAITeacherService';
+import { nativeDialog } from '../services/nativeDialog';
 
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'ai-info' | 'students' | 'history' | 'feedback' | 'ai-test' | 'migration'>('dashboard');
@@ -109,7 +110,7 @@ const AdminPage: React.FC = () => {
       setAllStudents(studentsWithChatData);
     } catch (error) {
       console.error('データ読み込みエラー:', error);
-      alert('データの読み込みに失敗しました');
+      await nativeDialog.showError('データ読み込み失敗', 'データの読み込みに失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   }, []);
 
@@ -167,12 +168,12 @@ const AdminPage: React.FC = () => {
 
   const handleAddStudent = async () => {
     if (!newStudentForm.name || !newStudentForm.username || !newStudentForm.loginId || !newStudentForm.password) {
-      alert('生徒名、ユーザー名、ログインID、パスワードは必須です');
+      await nativeDialog.showWarning('入力エラー', '生徒名、ユーザー名、ログインID、パスワードは必須です', 'すべての項目を入力してください');
       return;
     }
 
     if (newStudentForm.password.length < 6) {
-      alert('パスワードは6文字以上で設定してください');
+      await nativeDialog.showWarning('パスワードエラー', 'パスワードは6文字以上で設定してください', `現在のパスワード文字数: ${newStudentForm.password.length}文字`);
       return;
     }
 
@@ -182,7 +183,7 @@ const AdminPage: React.FC = () => {
       const isDuplicateLoginId = existingStudents.some(student => student.loginId === newStudentForm.loginId);
       
       if (isDuplicateLoginId) {
-        alert('このログインIDは既に使用されています。別のIDを設定してください。');
+        await nativeDialog.showWarning('ログインID重複', 'このログインIDは既に使用されています', '別のIDを設定してください。ログインIDは学生ごとに一意である必要があります。');
         return;
       }
 
@@ -213,10 +214,10 @@ const AdminPage: React.FC = () => {
       });
       setShowAddStudentModal(false);
       await loadData();
-      alert(`${newStudentForm.name}を追加しました！`);
+      await nativeDialog.showInfo('生徒追加完了', `${newStudentForm.name}を追加しました！`, '新しい生徒がシステムに登録されました。');
     } catch (error) {
       console.error('生徒追加エラー:', error);
-      alert(error instanceof Error ? error.message : '生徒の追加に失敗しました');
+      await nativeDialog.showError('生徒追加失敗', '生徒の追加に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   };
 
@@ -228,10 +229,10 @@ const AdminPage: React.FC = () => {
     try {
       await firebaseStudentService.deleteStudent(studentId);
       await loadData();
-      alert(`${studentName}を削除しました`);
+      await nativeDialog.showInfo('生徒削除完了', `${studentName}を削除しました`, '生徒情報がシステムから削除されました。');
     } catch (error) {
       console.error('生徒削除エラー:', error);
-      alert(error instanceof Error ? error.message : '削除に失敗しました');
+      await nativeDialog.showError('生徒削除失敗', '削除に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   };
 
@@ -253,7 +254,7 @@ const AdminPage: React.FC = () => {
     if (!selectedStudent) return;
     
     if (!editStudentForm.name || !editStudentForm.username) {
-      alert('生徒名とユーザー名は必須です');
+      await nativeDialog.showWarning('入力エラー', '生徒名とユーザー名は必須です', 'すべての必須項目を入力してください。');
       return;
     }
 
@@ -271,10 +272,10 @@ const AdminPage: React.FC = () => {
       setShowEditStudentModal(false);
       setSelectedStudent(null);
       await loadData();
-      alert('生徒情報を更新しました！');
+      await nativeDialog.showInfo('更新完了', '生徒情報を更新しました！', '生徒データが正常に更新されました。');
     } catch (error) {
       console.error('生徒更新エラー:', error);
-      alert(error instanceof Error ? error.message : '更新に失敗しました');
+      await nativeDialog.showError('更新失敗', '更新に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   };
 
@@ -382,10 +383,10 @@ const AdminPage: React.FC = () => {
       const result = await firebaseChatService.deleteAllChatData();
       setShowDeleteModal(false);
       await loadData();
-      alert(`全てのチャットデータを削除しました\n削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
+      await nativeDialog.showInfo('データ削除完了', '全てのチャットデータを削除しました', `削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
     } catch (error) {
       console.error('チャットデータ削除エラー:', error);
-      alert('チャットデータの削除に失敗しました');
+      await nativeDialog.showError('削除失敗', 'チャットデータの削除に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   };
 
@@ -398,10 +399,10 @@ const AdminPage: React.FC = () => {
       const result = await firebaseChatService.deleteOldChatData(days);
       setShowDeleteModal(false);
       await loadData();
-      alert(`${days}日より古いチャットデータを削除しました\n削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
+      await nativeDialog.showInfo('古いデータ削除完了', `${days}日より古いチャットデータを削除しました`, `削除されたセッション: ${result.deletedSessions}件\n削除されたメッセージ: ${result.deletedMessages}件`);
     } catch (error) {
       console.error('古いチャットデータ削除エラー:', error);
-      alert(`古いチャットデータの削除に失敗しました`);
+      await nativeDialog.showError('削除失敗', '古いチャットデータの削除に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     }
   };
 

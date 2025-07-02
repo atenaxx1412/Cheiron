@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, MessageSquare, Search, Filter, Trash2 } from 'lucide-react';
 import { Message, Category, ChatMode, ChatSession } from '../../types';
 import { firebaseChatService } from '../../services/firebaseChatService';
+import { nativeDialog } from '../../services/nativeDialog';
 
 interface ChatHistoryModalProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose }) 
         }
       } catch (error) {
         console.error('セッション削除エラー:', error);
-        alert('セッションの削除に失敗しました');
+        await nativeDialog.showError('削除失敗', 'セッションの削除に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
       }
     }
     setShowDeleteConfirm(false);

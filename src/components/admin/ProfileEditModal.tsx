@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Save } from 'lucide-react';
+import { nativeDialog } from '../../services/nativeDialog';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -24,7 +25,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      alert('表示名を入力してください');
+      await nativeDialog.showWarning('入力エラー', '表示名を入力してください', '表示名は必須項目です。');
       return;
     }
 
@@ -34,7 +35,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
       onClose();
     } catch (error) {
       console.error('プロフィール更新エラー:', error);
-      alert('プロフィールの更新に失敗しました');
+      await nativeDialog.showError('更新失敗', 'プロフィールの更新に失敗しました', error instanceof Error ? error.message : '不明なエラーが発生しました');
     } finally {
       setIsSaving(false);
     }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
 import { firebaseChatService } from '../services/firebaseChatService';
 import { firebaseStudentService } from '../services/firebaseStudentService';
+import { nativeDialog } from '../services/nativeDialog';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -82,11 +83,11 @@ const LoginPage: React.FC = () => {
             '入力されたユーザーIDまたはパスワードが正しくありません。\n\n正しい認証情報を入力してから、もう一度お試しください。'
           );
         } catch (error) {
-          console.warn('Electron dialog failed, using browser alert:', error);
-          alert('ログインに失敗しました。ユーザーIDまたはパスワードが間違っています。');
+          console.warn('Electron dialog failed, using nativeDialog fallback:', error);
+          await nativeDialog.showError('ログイン認証エラー', 'ユーザーIDまたはパスワードが間違っています', '正しい認証情報を入力してから、もう一度お試しください。');
         }
       } else {
-        alert('ログインに失敗しました。ユーザーIDまたはパスワードが間違っています。');
+        await nativeDialog.showError('ログイン認証エラー', 'ユーザーIDまたはパスワードが間違っています', '正しい認証情報を入力してから、もう一度お試しください。');
       }
       
     } catch (error) {
@@ -98,11 +99,11 @@ const LoginPage: React.FC = () => {
             'ログイン処理中にエラーが発生しました。\n\nネットワーク接続を確認し、しばらく時間をおいてから再度お試しください。'
           );
         } catch (dialogError) {
-          console.warn('Electron dialog failed, using browser alert:', dialogError);
-          alert('ログインに失敗しました');
+          console.warn('Electron dialog failed, using nativeDialog fallback:', dialogError);
+          await nativeDialog.showError('システムエラー', 'ログイン処理中にエラーが発生しました', 'ネットワーク接続を確認し、しばらく時間をおいてから再度お試しください。');
         }
       } else {
-        alert('ログインに失敗しました');
+        await nativeDialog.showError('システムエラー', 'ログイン処理中にエラーが発生しました', 'ネットワーク接続を確認し、しばらく時間をおいてから再度お試しください。');
       }
     } finally {
       setLoading(false);

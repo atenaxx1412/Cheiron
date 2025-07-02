@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Camera } from 'lucide-react';
 import { uploadService } from '../services/uploadService';
+import { nativeDialog } from '../services/nativeDialog';
 
 interface ImageUploadProps {
   currentImage?: string;
@@ -17,12 +18,12 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('画像ファイルを選択してください');
+      await nativeDialog.showError('ファイル形式エラー', '画像ファイルを選択してください', 'サポートされている形式: JPG, PNG, GIF, WEBP');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) { // 5MB制限
-      alert('ファイルサイズは5MB以下にしてください');
+      await nativeDialog.showError('ファイルサイズエラー', 'ファイルサイズは5MB以下にしてください', `現在のファイルサイズ: ${Math.round(file.size / 1024 / 1024 * 100) / 100}MB`);
       return;
     }
 
@@ -37,13 +38,13 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         console.log('Upload successful:', result.url);
       } else {
         console.error('Upload failed:', result.error);
-        alert(result.error || 'アップロードに失敗しました');
+        await nativeDialog.showError('アップロードエラー', 'ファイルのアップロードに失敗しました', result.error || '不明なエラーが発生しました');
       }
       
       setIsUploading(false);
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('アップロードに失敗しました');
+      await nativeDialog.showError('システムエラー', 'アップロードに失敗しました', error instanceof Error ? error.message : '予期しないエラーが発生しました');
       setIsUploading(false);
     }
   };
